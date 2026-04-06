@@ -1,0 +1,79 @@
+import type { Feature, MultiPolygon, MultiLineString, Position } from "geojson";
+import type { Projection } from "./projection";
+import type { BorderOptions } from "./border";
+import { buildSVGDocument } from "./builder";
+
+function polygonRingToPath(ring: Position[], proj: Projection): string {
+  return (
+    ring
+      .map((pt, i) => {
+        const [x, y] = proj.project(pt[0], pt[1]);
+        return `${i === 0 ? "M" : "L"}${x.toFixed(4)},${y.toFixed(4)}`;
+      })
+      .join(" ") + " Z"
+  );
+}
+
+function multiPolygonToPath(geom: MultiPolygon, proj: Projection): string {
+  return geom.coordinates
+    .flatMap((polygon) => polygon.map((ring) => polygonRingToPath(ring, proj)))
+    .join(" ");
+}
+
+function multiLineStringToPath(geom: MultiLineString, proj: Projection): string {
+  return geom.coordinates
+    .map((line) =>
+      line
+        .map((pt, i) => {
+          const [x, y] = proj.project(pt[0], pt[1]);
+          return `${i === 0 ? "M" : "L"}${x.toFixed(4)},${y.toFixed(4)}`;
+        })
+        .join(" ")
+    )
+    .join(" ");
+}
+
+export function generateCutLayerSVG(
+  feature: Feature<MultiPolygon>,
+  proj: Projection,
+  border?: BorderOptions
+): string {
+  const d = multiPolygonToPath(feature.geometry, proj);
+  return buildSVGDocument(
+    [{ id: "cut-layer", pathData: d, style: "cut" }],
+    proj.width,
+    proj.height,
+    border
+  );
+}
+
+export function generateEngraveLayerSVG(
+  feature: Feature<MultiLineString>,
+  proj: Projection,
+  border?: BorderOptions
+): string {
+  const d = multiLineStringToPath(feature.geometry, proj);
+  // Clip content to the inner area but do NOT render the frame —
+  // the top-cut layer's border covers that band when assembled.
+  return buildSVGDocument(
+    [{ id: "engrave-layer", pathData: d, style: "engrave" }],
+    proj.width,
+    proj.height,
+    border,
+    false // showFrame = false
+  );
+}
+
+export function generateTopCutLayerSVG(
+  feature: Feature<MultiPolygon>,
+  proj: Projection,
+  border?: BorderOptions
+): string {
+  const d = multiPolygonToPath(feature.geometry, proj);
+  return buildSVGDocument(
+    [{ id: "topcut-layer", pathData: d, style: "topcut" }],
+    proj.width,
+    proj.height,
+    border
+  );
+}
