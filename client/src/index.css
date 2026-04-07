@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display+SC:wght@400;700&family=Montserrat:wght@400;500;600;700&family=Courier+Prime:wght@400;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: #0F1117;
+  color: #F0F2FF;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1A1D27;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2E3247;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3E4257;
+}
+
+/* Range input styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: #242736;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4F6EF7;
+  cursor: pointer;
+  border: 2px solid #0F1117;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4F6EF7;
+  cursor: pointer;
+  border: 2px solid #0F1117;
+}
+
+/* Google Maps autocomplete dropdown styling */
+.pac-container {
+  background-color: #1A1D27 !important;
+  border: 1px solid #2E3247 !important;
+  border-radius: 8px !important;
+  margin-top: 4px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+}
+
+.pac-item {
+  border-top: 1px solid #2E3247 !important;
+  padding: 8px 12px !important;
+  color: #F0F2FF !important;
+  cursor: pointer !important;
+}
+
+.pac-item:hover {
+  background-color: #242736 !important;
+}
+
+.pac-item-query {
+  color: #F0F2FF !important;
+}
+
+.pac-matched {
+  color: #4F6EF7 !important;
+}
+
+.pac-icon {
+  filter: invert(1) brightness(0.7);
+}
