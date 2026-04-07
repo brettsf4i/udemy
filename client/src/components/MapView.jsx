@@ -27,19 +27,14 @@ function calcDimensions(bbox) {
 }
 
 function ManualBboxInput({ onSubmit }) {
-  const [values, setValues] = useState({ south: '', west: '', north: '', east: '' });
-
-  const handleChange = (key, val) => {
-    setValues((prev) => ({ ...prev, [key]: val }));
-  };
-
   const handleSubmit = (e) => {
     e.preventDefault();
+    const form = e.target;
     const bbox = {
-      south: parseFloat(values.south),
-      west: parseFloat(values.west),
-      north: parseFloat(values.north),
-      east: parseFloat(values.east),
+      south: parseFloat(form.elements.south.value),
+      west: parseFloat(form.elements.west.value),
+      north: parseFloat(form.elements.north.value),
+      east: parseFloat(form.elements.east.value),
     };
     if (Object.values(bbox).some(isNaN)) return;
     onSubmit(bbox);
@@ -52,10 +47,10 @@ function ManualBboxInput({ onSubmit }) {
           <div key={key}>
             <label className="text-xs text-secondary capitalize">{key}</label>
             <input
+              name={key}
               type="number"
               step="any"
-              value={values[key]}
-              onChange={(e) => handleChange(key, e.target.value)}
+              defaultValue=""
               placeholder={key === 'south' ? '40.70' : key === 'north' ? '40.75' : key === 'west' ? '-74.02' : '-73.97'}
               className="w-full px-2 py-1.5 bg-surface-2 border border-border rounded text-sm text-primary placeholder:text-secondary/50 focus:outline-none focus:border-primary"
             />

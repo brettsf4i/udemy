@@ -66,12 +66,38 @@ router.post('/', async (req, res, next) => {
       detailLevel = 50,
     } = settings || {};
 
-    // Fire 3 parallel Overpass requests
-    const [roadsRaw, waterRaw, coastlineRaw] = await Promise.all([
+    // Fire 3 parallel Overpass requests — water and coastline failures are non-fatal
+    const warnings = [];
+
+    const [roadsResult, waterResult, coastlineResult] = await Promise.allSettled([
       overpassService.fetchRoads(bbox),
       overpassService.fetchWater(bbox),
       overpassService.fetchCoastline(bbox),
     ]);
+
+    // Roads are required
+    if (roadsResult.status === 'rejected') {
+      throw new Error(roadsResult.reason?.message || 'Failed to fetch road data');
+    }
+    const roadsRaw = roadsResult.value;
+
+    // Water is optional
+    let waterRaw = [];
+    if (waterResult.status === 'fulfilled') {
+      waterRaw = waterResult.value;
+    } else {
+      warnings.push('Water data unavailable — continuing without water features');
+      console.warn('[WARN] Water fetch failed:', waterResult.reason?.message);
+    }
+
+    // Coastline is optional
+    let coastlineRaw = [];
+    if (coastlineResult.status === 'fulfilled') {
+      coastlineRaw = coastlineResult.value;
+    } else {
+      warnings.push('Coastline data unavailable — using bounding box as land area');
+      console.warn('[WARN] Coastline fetch failed:', coastlineResult.reason?.message);
+    }
 
     // Process roads
     const roadResult = roadProcessor.processRoads(roadsRaw, {
@@ -80,35 +106,32 @@ router.post('/', async (req, res, next) => {
     });
 
     // Process coastline
-    const coastlineResult = coastlineProcessor.processCoastline(coastlineRaw, bbox);
+    const coastlineProcessed = coastlineProcessor.processCoastline(coastlineRaw, bbox);
 
     // Process water
-    const waterResult = waterProcessor.processWater(waterRaw);
+    const waterProcessed = waterProcessor.processWater(waterRaw);
 
-    // Build response
+    warnings.push(...roadResult.stats.warnings);
+    if (coastlineProcessed.warning) {
+      warnings.push(coastlineProcessed.warning);
+    }
+
+    // Build response matching frontend expected shape
     const response = {
-      bbox,
-      settings: { outputSize, kerf, roadDensity, detailLevel },
       layers: {
-        roads: {
-          major: roadResult.major,
-          minor: roadResult.minor,
-        },
-        coastline: coastlineResult,
-        water: waterResult,
+        majorRoads: roadResult.major,
+        minorRoads: roadResult.minor,
+        coastline: coastlineProcessed,
+        water: waterProcessed,
       },
       stats: {
-        totalRoads: roadResult.stats.totalRoads,
-        majorRoads: roadResult.stats.majorCount,
-        minorRoads: roadResult.stats.minorCount,
-        droppedRoads: roadResult.stats.droppedCount,
-        coastlineSegments: coastlineResult.features ? coastlineResult.features.length : 0,
-        waterFeatures: waterResult.features ? waterResult.features.length : 0,
-        warnings: [
-          ...roadResult.stats.warnings,
-          ...(coastlineResult.warning ? [coastlineResult.warning] : []),
-        ],
+        majorRoadCount: roadResult.stats.majorCount,
+        minorRoadCount: roadResult.stats.minorCount,
+        waterBodyCount: waterProcessed.features ? waterProcessed.features.length : 0,
+        hasCoastline: coastlineRaw.length > 0,
+        usedBboxFallback: coastlineRaw.length === 0,
       },
+      warnings,
     };
 
     res.json(response);
