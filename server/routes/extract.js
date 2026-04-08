@@ -77,7 +77,10 @@ router.post('/', async (req, res, next) => {
 
     // Roads are required
     if (roadsResult.status === 'rejected') {
-      throw new Error(roadsResult.reason?.message || 'Failed to fetch road data');
+      const err = new Error(roadsResult.reason?.message || 'Failed to fetch road data');
+      err.statusCode = 502;
+      err.expose = true;
+      throw err;
     }
     const roadsRaw = roadsResult.value;
 

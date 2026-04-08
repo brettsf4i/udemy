@@ -1,55 +1,59 @@
 const axios = require('axios');
 
-const OVERPASS_URL = process.env.OVERPASS_API_URL || 'https://overpass-api.de/api/interpreter';
-const OVERPASS_TIMEOUT = parseInt(process.env.OVERPASS_TIMEOUT_MS, 10) || 30000;
+// Primary + mirror Overpass endpoints — tried in order until one succeeds
+const OVERPASS_ENDPOINTS = (process.env.OVERPASS_API_URL
+  ? [process.env.OVERPASS_API_URL]
+  : [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+    ]
+);
+
+// Axios timeout per request attempt
+const OVERPASS_TIMEOUT = parseInt(process.env.OVERPASS_TIMEOUT_MS, 10) || 60000;
 
 /**
- * Execute an Overpass query with retry logic.
- * On timeout (status 429 or ECONNABORTED), waits 3-5s then retries once.
+ * Execute an Overpass QL query, trying each endpoint in turn.
+ * Moves to the next mirror on 429, 504, or connection timeout.
  */
 async function queryOverpass(qlQuery) {
-  const executeRequest = () =>
-    axios.post(OVERPASS_URL, `data=${encodeURIComponent(qlQuery)}`, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      timeout: OVERPASS_TIMEOUT,
-    });
+  let lastErr = null;
 
-  try {
-    const response = await executeRequest();
-    return response.data;
-  } catch (firstError) {
-    const shouldRetry =
-      firstError.code === 'ECONNABORTED' ||
-      (firstError.response && firstError.response.status === 429) ||
-      (firstError.response && firstError.response.status === 504);
-
-    if (!shouldRetry) {
-      const msg = firstError.response
-        ? `Overpass API error: ${firstError.response.status} ${firstError.response.statusText}`
-        : `Overpass request failed: ${firstError.message}`;
-      const err = new Error(msg);
-      err.statusCode = 502;
-      err.expose = true;
-      throw err;
-    }
-
-    // Wait 3-5s before retry
-    const delay = 3000 + Math.random() * 2000;
-    await new Promise((resolve) => setTimeout(resolve, delay));
-
+  for (const url of OVERPASS_ENDPOINTS) {
     try {
-      const response = await executeRequest();
+      console.log(`[Overpass] Trying ${url}`);
+      const response = await axios.post(
+        url,
+        `data=${encodeURIComponent(qlQuery)}`,
+        {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: OVERPASS_TIMEOUT,
+        }
+      );
+      console.log(`[Overpass] Success from ${url}`);
       return response.data;
-    } catch (retryError) {
-      const msg = retryError.response
-        ? `Overpass API error after retry: ${retryError.response.status} ${retryError.response.statusText}`
-        : `Overpass request failed after retry: ${retryError.message}`;
-      const err = new Error(msg);
-      err.statusCode = 502;
-      err.expose = true;
-      throw err;
+    } catch (err) {
+      const status = err.response?.status;
+      const isRetriable =
+        err.code === 'ECONNABORTED' || status === 429 || status === 504 || status === 503;
+
+      console.warn(`[Overpass] ${url} failed: ${status || err.code || err.message}`);
+      lastErr = err;
+
+      if (!isRetriable) break; // Hard error — no point trying mirrors
+      // Otherwise fall through to next endpoint
     }
   }
+
+  // All endpoints failed
+  const msg = lastErr?.response
+    ? `Overpass API unavailable (${lastErr.response.status}). Try again in a moment.`
+    : `Overpass connection failed: ${lastErr?.message}`;
+  const err = new Error(msg);
+  err.statusCode = 502;
+  err.expose = true;
+  throw err;
 }
 
 /**
@@ -57,14 +61,16 @@ async function queryOverpass(qlQuery) {
  */
 async function fetchRoads(bbox) {
   const { south, west, north, east } = bbox;
-  const query = `[out:json][timeout:30];
+  const query = `[out:json][timeout:55];
 (
   way["highway"~"motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|unclassified|living_street|service"]
   (${south},${west},${north},${east});
 );
 out geom;`;
 
+  console.log(`[Overpass] Fetching roads for bbox: ${south},${west},${north},${east}`);
   const data = await queryOverpass(query);
+  console.log(`[Overpass] Roads: ${data.elements?.length ?? 0} elements`);
   return data.elements || [];
 }
 
@@ -73,7 +79,7 @@ out geom;`;
  */
 async function fetchWater(bbox) {
   const { south, west, north, east } = bbox;
-  const query = `[out:json][timeout:30];
+  const query = `[out:json][timeout:55];
 (
   way["natural"="water"](${south},${west},${north},${east});
   relation["natural"="water"](${south},${west},${north},${east});
@@ -91,7 +97,7 @@ out geom;`;
  */
 async function fetchCoastline(bbox) {
   const { south, west, north, east } = bbox;
-  const query = `[out:json][timeout:30];
+  const query = `[out:json][timeout:55];
 (
   way["natural"="coastline"](${south},${west},${north},${east});
 );
