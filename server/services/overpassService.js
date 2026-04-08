@@ -1,21 +1,23 @@
 const axios = require('axios');
 
-// Primary + mirror Overpass endpoints — tried in order until one succeeds
-const OVERPASS_ENDPOINTS = (process.env.OVERPASS_API_URL
+// Working public Overpass endpoints — tried in order until one succeeds.
+// maps.mail.ru removed (returns 403 for non-Russian traffic).
+// z. and lz4. are additional overpass-api.de load-balanced servers.
+const OVERPASS_ENDPOINTS = process.env.OVERPASS_API_URL
   ? [process.env.OVERPASS_API_URL]
   : [
       'https://overpass-api.de/api/interpreter',
+      'https://z.overpass-api.de/api/interpreter',
+      'https://lz4.overpass-api.de/api/interpreter',
       'https://overpass.kumi.systems/api/interpreter',
-      'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-    ]
-);
+    ];
 
-// Axios timeout per request attempt
+// Axios timeout per attempt
 const OVERPASS_TIMEOUT = parseInt(process.env.OVERPASS_TIMEOUT_MS, 10) || 60000;
 
 /**
  * Execute an Overpass QL query, trying each endpoint in turn.
- * Moves to the next mirror on 429, 504, or connection timeout.
+ * Moves to next mirror on 429 / 504 / 503 / timeout.
  */
 async function queryOverpass(qlQuery) {
   let lastErr = null;
@@ -36,19 +38,25 @@ async function queryOverpass(qlQuery) {
     } catch (err) {
       const status = err.response?.status;
       const isRetriable =
-        err.code === 'ECONNABORTED' || status === 429 || status === 504 || status === 503;
+        err.code === 'ECONNABORTED' ||
+        status === 429 ||
+        status === 503 ||
+        status === 504;
 
       console.warn(`[Overpass] ${url} failed: ${status || err.code || err.message}`);
       lastErr = err;
 
-      if (!isRetriable) break; // Hard error — no point trying mirrors
-      // Otherwise fall through to next endpoint
+      if (!isRetriable) {
+        // 403/400/etc — hard error, skip remaining mirrors
+        break;
+      }
+      // Soft error — try next mirror immediately
     }
   }
 
-  // All endpoints failed
-  const msg = lastErr?.response
-    ? `Overpass API unavailable (${lastErr.response.status}). Try again in a moment.`
+  const status = lastErr?.response?.status;
+  const msg = status
+    ? `Overpass API unavailable (${status}). Try a smaller area or try again shortly.`
     : `Overpass connection failed: ${lastErr?.message}`;
   const err = new Error(msg);
   err.statusCode = 502;
@@ -76,8 +84,10 @@ out geom;`;
 
 /**
  * Fetch water features within bbox.
+ * Staggered 200ms after roads to avoid hammering the same endpoint simultaneously.
  */
 async function fetchWater(bbox) {
+  await new Promise(r => setTimeout(r, 200));
   const { south, west, north, east } = bbox;
   const query = `[out:json][timeout:55];
 (
@@ -94,8 +104,10 @@ out geom;`;
 
 /**
  * Fetch coastline data within bbox.
+ * Staggered 400ms after roads.
  */
 async function fetchCoastline(bbox) {
+  await new Promise(r => setTimeout(r, 400));
   const { south, west, north, east } = bbox;
   const query = `[out:json][timeout:55];
 (
