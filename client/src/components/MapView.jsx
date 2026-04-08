@@ -200,10 +200,10 @@ export default function MapView() {
   const dims = calcDimensions(state.bbox);
 
   return (
-    <div className="relative w-full h-full">
+    <div className={`relative w-full h-full ${!state.bbox && !isDrawing ? 'cursor-crosshair' : ''}`}>
       <div
         ref={mapRef}
-        className={`w-full h-full ${!state.bbox ? 'cursor-crosshair' : ''}`}
+        className="w-full h-full"
       />
 
       {/* Search bar */}

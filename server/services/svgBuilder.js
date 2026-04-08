@@ -13,6 +13,15 @@ async function buildAllLayers({ layers, bbox, widthMm, heightMm, kerf, cityName,
   const widthPx = mmToPx(widthMm);
   const heightPx = mmToPx(heightMm);
 
+  // Log incoming data for debugging
+  console.log('[svgBuilder] Building SVGs:', {
+    widthMm, heightMm, cityName,
+    majorRoads: layers.majorRoads?.features?.length ?? 'null',
+    minorRoads: layers.minorRoads?.features?.length ?? 'null',
+    water: layers.water?.features?.length ?? 'null',
+    coastline: layers.coastline?.features?.length ?? 'null',
+  });
+
   // Build bbox GeoJSON for projection fitting
   const bboxGeoJSON = {
     type: 'Feature',
@@ -29,6 +38,12 @@ async function buildAllLayers({ layers, bbox, widthMm, heightMm, kerf, cityName,
   };
 
   const { pathGenerator, projection } = await initProjection(bboxGeoJSON, widthPx, heightPx);
+
+  // Spot-check: try projecting the bbox center to verify projection is working
+  const centerLon = (bbox.west + bbox.east) / 2;
+  const centerLat = (bbox.south + bbox.north) / 2;
+  const testPt = projection([centerLon, centerLat]);
+  console.log('[svgBuilder] Projection center test:', testPt);
 
   // Generate water paths (identical across all 3 layers)
   const waterPathsStr = generateWaterPaths(layers.water, pathGenerator);
@@ -75,6 +90,7 @@ async function buildAllLayers({ layers, bbox, widthMm, heightMm, kerf, cityName,
   const majorRoadPolygons = await generateMajorRoadPolygons(
     layers.majorRoads,
     projection,
+    pathGenerator,
     widthMm
   );
   const layer1 = buildSvgDocument(widthPx, heightPx, [
@@ -86,6 +102,12 @@ async function buildAllLayers({ layers, bbox, widthMm, heightMm, kerf, cityName,
     `</g>`,
     regMarks,
   ]);
+
+  console.log('[svgBuilder] Done. Layer sizes (chars):', {
+    layer1: layer1.length,
+    layer2: layer2.length,
+    layer3: layer3.length,
+  });
 
   return { layer1, layer2, layer3 };
 }
@@ -118,7 +140,13 @@ function generateLandPath(coastlineFC, pathGenerator, bbox, widthPx, heightPx) {
     if (d) paths.push(d);
   }
 
-  return paths.join(' ') || `M0,0 L${widthPx},0 L${widthPx},${heightPx} L0,${heightPx} Z`;
+  if (paths.length === 0) {
+    console.warn('[svgBuilder] coastline pathGenerator returned empty for all features — using bbox fallback');
+    return `M0,0 L${widthPx},0 L${widthPx},${heightPx} L0,${heightPx} Z`;
+  }
+
+  console.log(`[svgBuilder] coastline: ${paths.length} paths generated`);
+  return paths.join(' ');
 }
 
 /**
@@ -138,6 +166,7 @@ function generateWaterPaths(waterFC, pathGenerator) {
     }
   }
 
+  console.log(`[svgBuilder] water: ${lines.length}/${waterFC.features.length} paths generated`);
   return lines.length > 0 ? lines.join('\n') : '<!-- no water features rendered -->';
 }
 
@@ -157,24 +186,34 @@ function generateRoadPaths(roadFC, pathGenerator, stroke, strokeWidth) {
     }
   }
 
+  console.log(`[svgBuilder] roads (${stroke}): ${lines.length}/${roadFC.features.length} paths generated`);
   return lines.length > 0 ? lines.join('\n') : '<!-- no roads rendered -->';
 }
 
 /**
  * Generate major road expanded polygons using clipper offset + union.
+ * Falls back to centerline strokes if clipper fails.
  */
-async function generateMajorRoadPolygons(majorFC, projection, widthMm) {
+async function generateMajorRoadPolygons(majorFC, projection, pathGenerator, widthMm) {
   if (!majorFC || !majorFC.features || majorFC.features.length === 0) {
     return '<!-- no major roads -->';
   }
 
-  const pathData = clipperService.expandAndUnionRoads(majorFC, projection, widthMm);
+  // Try clipper expansion first
+  try {
+    const pathData = clipperService.expandAndUnionRoads(majorFC, projection, widthMm);
 
-  if (!pathData || pathData.length === 0) {
-    return '<!-- no major road polygons generated -->';
+    if (pathData && pathData.length > 0) {
+      console.log(`[svgBuilder] major roads: clipper produced ${pathData.length} chars`);
+      return `  <path d="${pathData}" stroke="#000000" stroke-width="0.5" fill="none"/>`;
+    }
+    console.warn('[svgBuilder] Clipper returned empty path — falling back to centerlines');
+  } catch (err) {
+    console.error('[svgBuilder] Clipper expansion threw:', err.message);
   }
 
-  return `  <path d="${pathData}" stroke="#000000" stroke-width="0.5" fill="none"/>`;
+  // Fallback: render major roads as thick centerline strokes
+  return generateRoadPaths(majorFC, pathGenerator, '#000000', '1.5');
 }
 
 /**
