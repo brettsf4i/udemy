@@ -22,22 +22,7 @@ async function buildAllLayers({ layers, bbox, widthMm, heightMm, kerf, cityName,
     coastline: layers.coastline?.features?.length ?? 'null',
   });
 
-  // Build bbox GeoJSON for projection fitting
-  const bboxGeoJSON = {
-    type: 'Feature',
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [bbox.west, bbox.south],
-        [bbox.east, bbox.south],
-        [bbox.east, bbox.north],
-        [bbox.west, bbox.north],
-        [bbox.west, bbox.south],
-      ]],
-    },
-  };
-
-  const { pathGenerator, projection } = await initProjection(bboxGeoJSON, widthPx, heightPx);
+  const { pathGenerator, projection } = await initProjection(bbox, widthPx, heightPx);
 
   // Spot-check: try projecting the bbox center to verify projection is working
   const centerLon = (bbox.west + bbox.east) / 2;

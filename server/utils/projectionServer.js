@@ -36,21 +36,38 @@ function pxToMm(px) {
 }
 
 /**
- * Initialize a Mercator projection fitted to the given bbox GeoJSON.
- * @param {Object} bboxGeoJSON - GeoJSON Feature with Polygon geometry representing the bbox
+ * Initialize a Mercator projection fitted to the given bbox.
+ * @param {Object} bbox - { south, west, north, east } in degrees
  * @param {number} outputWidthPx - Output width in pixels
  * @param {number} outputHeightPx - Output height in pixels
  * @returns {{ projection, pathGenerator }}
  */
-async function initProjection(bboxGeoJSON, outputWidthPx, outputHeightPx) {
+async function initProjection(bbox, outputWidthPx, outputHeightPx) {
   const d3 = await getD3();
+
+  // Use MultiPoint (four corners) instead of a Polygon.
+  // d3-geo's fitExtent has a spherical winding-order ambiguity with small Polygons —
+  // it can interpret the polygon as the inverse region (whole sphere minus the bbox),
+  // producing a tiny projected area. MultiPoint avoids this entirely.
+  const bboxPoints = {
+    type: 'Feature',
+    geometry: {
+      type: 'MultiPoint',
+      coordinates: [
+        [bbox.west, bbox.south],
+        [bbox.east, bbox.south],
+        [bbox.east, bbox.north],
+        [bbox.west, bbox.north],
+      ],
+    },
+  };
 
   const projection = d3.geoMercator().fitExtent(
     [
       [PADDING, PADDING],
       [outputWidthPx - PADDING, outputHeightPx - PADDING],
     ],
-    bboxGeoJSON
+    bboxPoints
   );
 
   const pathGenerator = d3.geoPath(projection);

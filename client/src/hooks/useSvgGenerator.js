@@ -14,20 +14,9 @@ export function useSvgGenerator() {
     const outputWidthPx = widthMm * MM_TO_PX;
     const outputHeightPx = heightMm * MM_TO_PX;
 
-    // Create bbox GeoJSON polygon (geometry, not Feature — both work with fitExtent)
-    const { south, west, north, east } = state.bbox;
-    const bboxGeoJSON = {
-      type: 'Feature',
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[
-          [west, south], [east, south], [east, north], [west, north], [west, south]
-        ]]
-      }
-    };
-
-    // Initialize shared projection
-    const { pathGenerator } = initProjection(bboxGeoJSON, outputWidthPx, outputHeightPx);
+    // Pass bbox as { south, west, north, east } — initProjection converts it to
+    // a MultiPoint internally to avoid d3-geo's spherical polygon winding ambiguity.
+    const { pathGenerator } = initProjection(state.bbox, outputWidthPx, outputHeightPx);
 
     // Generate water paths (shared across all layers)
     const waterPaths = [];
