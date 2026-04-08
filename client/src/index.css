@@ -1,4 +1,11 @@
+@import 'leaflet/dist/leaflet.css';
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display+SC:wght@400;700&family=Montserrat:wght@400;500;600;700&family=Courier+Prime:wght@400;700&display=swap');
+
+/* Force all loaded Leaflet tiles to full opacity immediately — skip fade animation */
+.leaflet-tile-loaded {
+  opacity: 1 !important;
+  transition: none !important;
+}
 
 @tailwind base;
 @tailwind components;

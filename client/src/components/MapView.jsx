@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useProject } from '../context/ProjectContext';
 import { MapPin, X, Search, Loader2 } from 'lucide-react';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 
 function calcDimensions(bbox) {
   if (!bbox) return null;
@@ -20,7 +19,13 @@ export default function MapView() {
   const mapInstanceRef = useRef(null);
   const rectangleRef = useRef(null);
   const drawStartRef = useRef(null);
+  const bboxRef = useRef(state.bbox); // mirror bbox in a ref so drawing handlers stay stable
+  const dispatchRef = useRef(dispatch);
   const [isDrawing, setIsDrawing] = useState(false);
+
+  // Keep refs in sync without re-running effects
+  useEffect(() => { bboxRef.current = state.bbox; }, [state.bbox]);
+  useEffect(() => { dispatchRef.current = dispatch; }, [dispatch]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -49,100 +54,94 @@ export default function MapView() {
 
     mapInstanceRef.current = map;
 
+    // Leaflet reads the container size at init time. In a flex layout inside
+    // React StrictMode the container may report wrong dimensions on first paint.
+    // Firing a synthetic resize event is the most reliable way to make Leaflet
+    // recalculate — it listens to window resize internally.
+    const fixSize = () => {
+      if (!mapInstanceRef.current) return;
+      map.invalidateSize({ animate: false, pan: false });
+      window.dispatchEvent(new Event('resize'));
+    };
+    setTimeout(fixSize, 0);
+    setTimeout(fixSize, 150);
+    setTimeout(fixSize, 500);
+
     return () => {
       map.remove();
       mapInstanceRef.current = null;
     };
   }, []);
 
-  // Bbox drawing handlers
+  // Bbox drawing handlers — registered ONCE, read live state via refs
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
+    // Wait for map to be ready (it initializes in a separate effect)
+    const waitForMap = setInterval(() => {
+      const map = mapInstanceRef.current;
+      if (!map) return;
+      clearInterval(waitForMap);
 
-    const onMouseDown = (e) => {
-      if (state.bbox) return; // Already have a selection
-      drawStartRef.current = e.latlng;
-      setIsDrawing(true);
-      map.dragging.disable();
-
-      if (rectangleRef.current) {
-        rectangleRef.current.remove();
-        rectangleRef.current = null;
-      }
-    };
-
-    const onMouseMove = (e) => {
-      if (!drawStartRef.current) return;
-      const start = drawStartRef.current;
-      const bounds = L.latLngBounds(start, e.latlng);
-
-      if (rectangleRef.current) {
-        rectangleRef.current.setBounds(bounds);
-      } else {
-        rectangleRef.current = L.rectangle(bounds, {
-          color: '#4F6EF7',
-          weight: 2,
-          opacity: 0.8,
-          fillColor: '#4F6EF7',
-          fillOpacity: 0.1,
-          dashArray: '6 4',
-        }).addTo(map);
-      }
-    };
-
-    const onMouseUp = (e) => {
-      if (!drawStartRef.current) return;
-      map.dragging.enable();
-      setIsDrawing(false);
-
-      const start = drawStartRef.current;
-      drawStartRef.current = null;
-
-      const bounds = L.latLngBounds(start, e.latlng);
-      const sw = bounds.getSouthWest();
-      const ne = bounds.getNorthEast();
-
-      const latSpan = Math.abs(ne.lat - sw.lat);
-      const lngSpan = Math.abs(ne.lng - sw.lng);
-      if (latSpan < 0.001 || lngSpan < 0.001) {
+      const onMouseDown = (e) => {
+        if (bboxRef.current) return; // Already have a selection
+        drawStartRef.current = e.latlng;
+        setIsDrawing(true);
+        map.dragging.disable();
         if (rectangleRef.current) {
           rectangleRef.current.remove();
           rectangleRef.current = null;
         }
-        return;
-      }
-
-      // Make rectangle solid after drawing
-      if (rectangleRef.current) {
-        rectangleRef.current.setStyle({
-          dashArray: null,
-          fillOpacity: 0.15,
-          opacity: 1,
-        });
-      }
-
-      const bbox = {
-        south: sw.lat,
-        west: sw.lng,
-        north: ne.lat,
-        east: ne.lng,
       };
 
-      dispatch({ type: 'SET_BBOX', payload: bbox });
-      dispatch({ type: 'SET_STEP', payload: 2 });
-    };
+      const onMouseMove = (e) => {
+        if (!drawStartRef.current) return;
+        const bounds = L.latLngBounds(drawStartRef.current, e.latlng);
+        if (rectangleRef.current) {
+          rectangleRef.current.setBounds(bounds);
+        } else {
+          rectangleRef.current = L.rectangle(bounds, {
+            color: '#4F6EF7',
+            weight: 2,
+            opacity: 0.8,
+            fillColor: '#4F6EF7',
+            fillOpacity: 0.1,
+            dashArray: '6 4',
+          }).addTo(map);
+        }
+      };
 
-    map.on('mousedown', onMouseDown);
-    map.on('mousemove', onMouseMove);
-    map.on('mouseup', onMouseUp);
+      const onMouseUp = (e) => {
+        if (!drawStartRef.current) return;
+        map.dragging.enable();
+        setIsDrawing(false);
 
-    return () => {
-      map.off('mousedown', onMouseDown);
-      map.off('mousemove', onMouseMove);
-      map.off('mouseup', onMouseUp);
-    };
-  }, [state.bbox, dispatch]);
+        const start = drawStartRef.current;
+        drawStartRef.current = null;
+
+        const bounds = L.latLngBounds(start, e.latlng);
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
+
+        if (Math.abs(ne.lat - sw.lat) < 0.001 || Math.abs(ne.lng - sw.lng) < 0.001) {
+          if (rectangleRef.current) { rectangleRef.current.remove(); rectangleRef.current = null; }
+          return;
+        }
+
+        if (rectangleRef.current) {
+          rectangleRef.current.setStyle({ dashArray: null, fillOpacity: 0.15, opacity: 1 });
+        }
+
+        const bbox = { south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng };
+        dispatchRef.current({ type: 'SET_BBOX', payload: bbox });
+        dispatchRef.current({ type: 'SET_STEP', payload: 2 });
+      };
+
+      map.on('mousedown', onMouseDown);
+      map.on('mousemove', onMouseMove);
+      map.on('mouseup', onMouseUp);
+    }, 50);
+
+    return () => clearInterval(waitForMap);
+  }, []); // empty deps — handlers read state via refs, never re-register
 
   // Nominatim city search (free, no key)
   const searchCity = useCallback(async (query) => {

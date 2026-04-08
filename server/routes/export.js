@@ -50,9 +50,9 @@ router.post('/', async (req, res, next) => {
       heightMm,
       kerf,
       stats: {
-        majorRoads: layers.roads && layers.roads.major ? layers.roads.major.features.length : 0,
-        minorRoads: layers.roads && layers.roads.minor ? layers.roads.minor.features.length : 0,
-        waterFeatures: layers.water && layers.water.features ? layers.water.features.length : 0,
+        majorRoads: layers.majorRoads?.features?.length ?? 0,
+        minorRoads: layers.minorRoads?.features?.length ?? 0,
+        waterFeatures: layers.water?.features?.length ?? 0,
       },
     });
 

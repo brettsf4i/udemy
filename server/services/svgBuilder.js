@@ -54,7 +54,7 @@ async function buildAllLayers({ layers, bbox, widthMm, heightMm, kerf, cityName,
 
   // --- Layer 2: Minor roads + water + text ---
   const minorRoadPaths = generateRoadPaths(
-    layers.roads && layers.roads.minor,
+    layers.minorRoads,
     pathGenerator,
     '#444444',
     '0.3'
@@ -73,7 +73,7 @@ async function buildAllLayers({ layers, bbox, widthMm, heightMm, kerf, cityName,
 
   // --- Layer 1: Major roads (expanded polygons) + water ---
   const majorRoadPolygons = await generateMajorRoadPolygons(
-    layers.roads && layers.roads.major,
+    layers.majorRoads,
     projection,
     widthMm
   );
