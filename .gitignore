@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Lock files (generated, not committed)
+package-lock.json
+client/package-lock.json
+server/package-lock.json
+yarn.lock
+
+# Build output
+client/dist/
+client/build/
+
+# Environment files
+.env
+.env.local
+.env.production
+server/.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+
+# Claude worktree metadata
+.claude/

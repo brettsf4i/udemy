@@ -25,13 +25,9 @@ export function useExport() {
           settings: {
             outputSize: state.settings.outputSize,
             kerf: state.settings.kerf,
-            cityName: state.cityName || 'City',
-            customMessage: state.settings.customMessage,
-            font: state.settings.font,
-            materialThickness: state.settings.materialThickness,
-            includeLaserGuide: state.settings.includeLaserGuide,
-            roadDensity: state.settings.roadDensity
           },
+          cityName: state.cityName || 'City',
+          customMessage: state.settings.customMessage || '',
           bbox: state.bbox,
           stats: state.stats
         })

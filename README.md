@@ -2,6 +2,8 @@
 
 Convert OpenStreetMap data into precisely registered 3-layer SVG files optimized for laser engraving wooden city maps.
 
+**No API keys required.** Everything uses free, open-source data and services.
+
 ## What It Does
 
 LaserMap Studio generates a set of three SVG files that, when laser-cut and stacked, create a professional multi-layer wooden city map:
@@ -15,17 +17,8 @@ All three layers include registration marks for precise alignment using 3mm dowe
 ## Prerequisites
 
 - **Node.js 18+**
-- **Google Maps API key** (for map display and city search)
 
-### Google Maps API Setup
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or select existing)
-3. Enable these APIs:
-   - **Maps JavaScript API**
-   - **Places API**
-4. Create an API key under Credentials
-5. Copy the key for use in the `.env` file below
+That's it. No API keys, no accounts, no sign-ups.
 
 ## Setup
 
@@ -37,12 +30,9 @@ cd lasermapstudio
 # Install all dependencies (root, client, and server)
 npm run install:all
 
-# Configure environment variables
+# Optional: configure environment variables
 cp client/.env.example client/.env
 cp server/.env.example server/.env
-
-# Edit client/.env and add your Google Maps API key
-# VITE_GOOGLE_MAPS_API_KEY=your_actual_key_here
 ```
 
 ## Running in Development
@@ -69,9 +59,6 @@ npm run dev
 ### Empty map data
 The selected area may have limited OpenStreetMap coverage. Try selecting a more urban area or a larger bounding box.
 
-### Google Maps API key errors
-Ensure your API key has the Maps JavaScript API and Places API enabled. Check that the key has no IP/referrer restrictions blocking localhost.
-
 ### Overpass API timeouts
 The OpenStreetMap Overpass API can be busy during peak hours. The app retries once automatically. If it persists, wait a minute and try again.
 
@@ -83,9 +70,11 @@ Large or highly detailed selections may take longer to process. If export times 
 
 ## Tech Stack
 
-- **Frontend**: React 18, Vite, Tailwind CSS, D3-geo, Google Maps JS API
+- **Frontend**: React 18, Vite, Tailwind CSS, Leaflet, D3-geo
 - **Backend**: Node.js, Express, Overpass API, clipper-lib, archiver
-- **Map Data**: OpenStreetMap (free, no API key needed)
+- **Map Tiles**: CartoDB Dark Matter (OpenStreetMap-based, free)
+- **City Search**: Nominatim (OpenStreetMap geocoding, free)
+- **Map Data**: OpenStreetMap Overpass API (free)
 
 ## License
 

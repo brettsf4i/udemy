@@ -3,8 +3,6 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+// StrictMode is intentionally omitted — it double-invokes useEffect in dev
+// which tears down and re-mounts the Leaflet map, causing tile rendering issues.
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
